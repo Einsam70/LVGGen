@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Galería Multimedia Local / Local Multimedia Gallery Generator</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { background: #121212; color: #fff; padding: 40px 20px; display: flex; justify-content: center; }
+        .container { max-width: 650px; width: 100%; background: #1e1e1e; padding: 30px; border-radius: 12px; border: 1px solid #333; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        h1 { font-size: 24px; color: #007fff; font-weight: bold; }
+        
+        .lang-btn { background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; transition: background 0.3s, border-color 0.3s; }
+        .lang-btn:hover { background: #007fff; border-color: #007fff; }
+        
+        p { color: #aaa; font-size: 14px; margin-bottom: 25px; text-align: left; line-height: 1.5; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-size: 14px; color: #ddd; }
+        input[type="text"] { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #444; background: #2a2a2a; color: #fff; font-size: 15px; outline: none; }
+        input[type="text"]:focus { border-color: #007fff; }
+        
+        select { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #444; background: #2a2a2a; color: #fff; font-size: 15px; outline: none; cursor: pointer; }
+        select option { background: #2a2a2a; color: #fff; }
+
+        .file-box { border: 2px dashed #444; padding: 25px; text-align: center; border-radius: 8px; cursor: pointer; background: #1a1a1a; transition: background 0.3s, border-color 0.3s; }
+        .file-box:hover { background: #252525; border-color: #007fff; }
+        .file-box p { margin: 0; color: #007fff; font-weight: bold; }
+        .file-box span { font-size: 12px; color: #777; display: block; margin-top: 5px; }
+        .btn-generate { width: 100%; padding: 14px; background: #007fff; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s; margin-top: 10px; display: none; }
+        .btn-generate:hover { background: #e50914; }
+        
+        .status { margin-top: 20px; padding: 15px; background: rgba(46, 204, 113, 0.1); border: 1px solid #2ecc71; border-radius: 6px; text-align: left; font-size: 14px; color: #2ecc71; line-height: 1.5; display: none; }
+        .status strong { color: #fff; background: #2ecc71; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+        .status.warning { background: rgba(241, 196, 15, 0.1); border-color: #f1c40f; color: #f1c40f; }
+        .status.warning strong { background: #f1c40f; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-row">
+        <h1 id="creatorTitle">Creador de Galerías Portátiles</h1>
+        <button id="creatorLangBtn" class="lang-btn">EN / ES</button>
+    </div>
+    <p id="creatorDesc">Indexa carpetas locales de videos. Las galerías generadas incluirán soporte bilingüe (ES/EN) y opción de reproducción continua ajustable.</p>
+    
+    <div class="form-group">
+        <label id="lblWebTitle" for="webTitle">Título de la galería (Pestaña):</label>
+        <input type="text" id="webTitle" value="Mi Galería de Videos" placeholder="Ej: Series, Cursos...">
+    </div>
+
+    <div class="form-group">
+        <label id="lblWebFileName" for="webFileName">Nombre del archivo (sin .html):</label>
+        <input type="text" id="webFileName" value="galeria" placeholder="Ej: index, galeria...">
+    </div>
+
+    <div class="form-group">
+        <label id="lblFolder">Selecciona la carpeta principal (Raíz):</label>
+        <div class="file-box" id="dropZone">
+            <p id="txtBoxAction">📁 Elegir Carpeta Raíz</p>
+            <span id="folderStatus">No se ha seleccionado ningún directorio</span>
+        </div>
+    </div>
+
+    <button id="btnGenerate" class="btn-generate">📥 Generar y Descargar Archivo HTML</button>
+    <div id="statusMsg" class="status"></div>
+</div>
+
+<script>
+    // --- DICCIONARIO DE TRADUCCIÓN PARA LA INTERFAZ DEL CREADOR ---
+    const creatorTranslations = {
+        es: {
+            title: "Creador de Galerías Portátiles",
+            desc: "Indexa carpetas locales de videos. Las galerías generadas incluirán soporte bilingüe (ES/EN) y opción de reproducción continua ajustable.",
+            lblTitle: "Título de la galería (Pestaña):",
+            lblFileName: "Nombre del archivo (sin .html):",
+            lblFolder: "Selecciona la carpeta principal (Raíz):",
+            boxAction: "📁 Elegir Carpeta Raíz",
+            noFolder: "No se ha seleccionado ningún directorio",
+            btnGenerate: "📥 Generar y Descargar Archivo HTML",
+            alertNoFiles: "No se encontraron formatos de video compatibles en este directorio ni en sus subcarpetas.",
+            indexedMsg: (root, count) => `¡Carpeta [${root}] indexada! Encontrados ${count} videos.`,
+            successNative: (file) => `<strong>ÉXITO</strong> ¡Archivo "${file}.html" guardado directamente en la raíz de tu carpeta seleccionada!`,
+            successBlob: (file, root) => `<strong>ATENCIÓN</strong> El archivo <strong>"${file}.html"</strong> se ha descargado.<br><br>⚠️ Para que funcione todo correctamente, <strong>DEBES MOVERLO MANUALMENTE DENTRO DE LA CARPETA PRINCIPAL</strong>: <span style="color:#fff; font-weight:bold; text-decoration:underline;">${root}</span> (junto a los videos sueltos y las carpetas internas).`
+        },
+        en: {
+            title: "Portable Gallery Creator",
+            desc: "Index local video folders. Generated galleries will include bilingual support (ES/EN) and an adjustable continuous playback option.",
+            lblTitle: "Gallery Title (Browser Tab):",
+            lblFileName: "File Name (without .html):",
+            lblFolder: "Select the main folder (Root):",
+            boxAction: "📁 Choose Root Folder",
+            noFolder: "No directory selected yet",
+            btnGenerate: "📥 Generate and Download HTML File",
+            alertNoFiles: "No compatible video formats found in this directory or its subfolders.",
+            indexedMsg: (root, count) => `Folder [${root}] indexed! Found ${count} videos.`,
+            successNative: (file) => `<strong>SUCCESS</strong> File "${file}.html" saved directly to your selected root folder!`,
+            successBlob: (file, root) => `<strong>ATTENTION</strong> The file <strong>"${file}.html"</strong> has been downloaded.<br><br>⚠️ For everything to work correctly, <strong>YOU MUST MANUALLY MOVE IT INSIDE THE MAIN FOLDER</strong>: <span style="color:#fff; font-weight:bold; text-decoration:underline;">${root}</span> (next to loose videos and subfolders).`
+        }
+    };
+
+    let creatorLang = navigator.language.startsWith('es') ? 'es' : 'en';
+    const ALLOWED_EXTENSIONS = ["mp4", "webm", "ogg", "m4v", "mov", "mkv", "avi"];
+    let detectedFiles = [];
+    let rootFolderName = "";
+
+    // Función para aplicar idioma dinámicamente al creador
+    function translateCreator() {
+        const t = creatorTranslations[creatorLang];
+        document.getElementById('creatorTitle').textContent = t.title;
+        document.getElementById('creatorDesc').textContent = t.desc;
+        document.getElementById('lblWebTitle').textContent = t.lblTitle;
+        document.getElementById('lblWebFileName').textContent = t.lblFileName;
+        document.getElementById('lblFolder').textContent = t.lblFolder;
+        document.getElementById('txtBoxAction').textContent = t.boxAction;
+        
+        if (detectedFiles.length === 0) {
+            document.getElementById('folderStatus').textContent = t.noFolder;
+        } else {
+            document.getElementById('folderStatus').textContent = t.indexedMsg(rootFolderName, detectedFiles.length);
+        }
+        document.getElementById('btnGenerate').textContent = t.btnGenerate;
+        
+        // Ajustar placeholders e inputs iniciales solo si están en su estado por defecto
+        const webTitleInput = document.getElementById('webTitle');
+        if (webTitleInput.value === "Mi Galería de Videos" || webTitleInput.value === "My Video Gallery") {
+            webTitleInput.value = creatorLang === 'es' ? "Mi Galería de Videos" : "My Video Gallery";
+        }
+        webTitleInput.placeholder = creatorLang === 'es' ? "Ej: Series, Cursos..." : "Eg: Series, Courses...";
+        document.getElementById('webFileName').placeholder = creatorLang === 'es' ? "Ej: index, galeria..." : "Eg: index, gallery...";
+        
+        // Si hay una alerta de estado visible, retraducirla también
+        const statusEl = document.getElementById('statusMsg');
+        if (statusEl.style.display === 'block') {
+            const filename = document.getElementById('webFileName').value.trim() || 'galeria';
+            const isNative = !statusEl.classList.contains('warning');
+            statusEl.innerHTML = isNative ? t.successNative(filename) : t.successBlob(filename, rootFolderName);
+        }
+    }
+
+    // Evento del botón selector de idioma del creador
+    document.getElementById('creatorLangBtn').addEventListener('click', () => {
+        creatorLang = creatorLang === 'es' ? 'en' : 'es';
+        translateCreator();
+    });
+
+    // Inicializar idioma del creador
+    translateCreator();
+
+    const folderInput = document.createElement('input');
+    folderInput.type = 'file';
+    folderInput.webkitdirectory = true;
+    folderInput.directory = true;
+    folderInput.multiple = true;
+    folderInput.style.display = 'none';
+    document.body.appendChild(folderInput);
+
+    document.getElementById('dropZone').addEventListener('click', () => folderInput.click());
+
+    folderInput.addEventListener('change', (e) => {
+        const files = Array.from(e.target.files);
+        detectedFiles = [];
+
+        if (files.length > 0 && files[0].webkitRelativePath) {
+            rootFolderName = files[0].webkitRelativePath.split('/')[0];
+        }
+
+        files.forEach(file => {
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (ALLOWED_EXTENSIONS.includes(ext)) {
+                const parts = file.webkitRelativePath.split('/');
+                parts.shift(); 
+                const relativePath = parts.join('/');
+
+                detectedFiles.push({
+                    path: relativePath,
+                    name: file.name
+                });
+            }
+        });
+
+        if (detectedFiles.length === 0) {
+            alert(creatorTranslations[creatorLang].alertNoFiles);
+            document.getElementById('btnGenerate').style.display = 'none';
+            document.getElementById('folderStatus').textContent = creatorTranslations[creatorLang].noFolder;
+            return;
+        }
+
+        detectedFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: 'base'}));
+
+        document.getElementById('folderStatus').textContent = creatorTranslations[creatorLang].indexedMsg(rootFolderName, detectedFiles.length);
+        document.getElementById('btnGenerate').style.display = 'block';
+    });
+
+    document.getElementById('btnGenerate').addEventListener('click', async () => {
+        const title = document.getElementById('webTitle').value.trim() || 'Galería Local';
+        const filename = document.getElementById('webFileName').value.trim() || 'galeria';
+        const filesJson = JSON.stringify(detectedFiles);
+
+        // La plantilla (htmlTemplate) se mantiene 100% idéntica a tu código preferido de creator2.html
+        const htmlTemplate = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <style>
+        *{ margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; font-weight: normal; }
+        body{ background: #000000; color: rgba(255, 255, 255, 0.95); transition: background 0.3s, color 0.3s; }
+        .content-area{ width: min(1700px, 100%); margin: 0 auto; padding: 20px 5%; }
+        
+        .main-video{ background: rgba(0, 127, 255, 0.08); border-radius: 10px; padding: 18px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 22px; }
+        .main-video-topbar{ display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; margin-bottom: 16px; }
+        .heading{ font-size: 28px; text-align: center; margin: 0; font-weight: bold; letter-spacing: 0.5px; }
+        
+        .topbar-actions{ display: flex; gap: 10px; align-items: center; }
+        .theme-toggle, .lang-toggle{ height: 42px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border: none; border-radius: 8px; background-color: rgba(255, 255, 255, 0.08); color: white; transition: transform 0.2s, background 0.3s; font-weight: bold; font-size: 14px; }
+        .theme-toggle:hover, .lang-toggle:hover, button.control-btn:hover{ background-color: #e50914; transform: translateY(-2px); }
+        
+        .main-video video{ width: 100%; border-radius: 9px; aspect-ratio: 16 / 9; max-height: 65vh; object-fit: contain; display: block; background: #000; box-shadow: 0 4px 20px rgba(0, 127, 255, 0.2); }
+        .navigation-buttons{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 15px; }
+        
+        button.control-btn{ background-color: rgba(255, 255, 255, 0.1); color: white; padding: 10px 18px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; cursor: pointer; transition: background 0.3s; font-weight: bold; }
+        
+        .main-video .title{ font-size: 22px; padding: 15px 0 5px; font-weight: bold; line-height: 1.4; }
+        
+        .controls-row { display: flex; gap: 15px; margin-bottom: 22px; align-items: center; flex-wrap: wrap; }
+        .search-container{ flex: 1; min-width: 250px; }
+        .search-container input { width: 100%; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; background-color: rgba(255, 255, 255, 0.05); color: white; outline: none; font-size: 15px; }
+        
+        .filter-container select { padding: 12px 14px; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; background-color: #1e1e1e; color: #ffffff; outline: none; font-size: 15px; cursor: pointer; height: 46px; }
+        
+        .autoplay-container { display: flex; align-items: center; background: rgba(255, 255, 255, 0.05); padding: 0 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); height: 46px; user-select: none; }
+        .autoplay-label { font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: bold; color: #ddd; }
+        .autoplay-label input { width: 16px; height: 16px; cursor: pointer; }
+
+        .video-list{ display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; align-items: start; }
+        .video-list .vid{ background: rgba(255, 255, 255, 0.03); border-radius: 12px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.08); cursor: pointer; transition: transform 0.25s, background 0.3s; }
+        .video-list .vid:hover{ background: rgba(0, 127, 255, 0.12); transform: translateY(-4px); }
+        .video-list .vid.active{ background: rgba(229, 9, 20, 0.15); border-color: #e50914; }
+        
+        .thumb-wrap{ position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .thumb-video-element { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+        .thumb-badge{ position: absolute; right: 10px; bottom: 10px; background: rgba(0, 0, 0, 0.75); color: #fff; font-size: 11px; padding: 4px 8px; border-radius: 4px; font-weight: bold; z-index: 2; }
+        
+        .video-list .video-info{ padding: 12px; }
+        .video-list .video-info .title{ font-size: 14px; font-weight: bold; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+        
+        .pagination{ display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 30px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); }
+        .pagination button{ min-width: 42px; height: 42px; padding: 0 10px; background: rgba(255, 255, 255, 0.05); color: white; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
+        .pagination button:hover { background: rgba(255,255,255,0.15); }
+        .pagination button.active-page{ background-color: #e50914; border-color: #e50914; color: #fff; }
+        
+        .light-theme{ background: #F4F4F6; color: #111111; }
+        .light-theme .main-video { background: rgba(0, 127, 255, 0.05); border-color: rgba(0, 0, 0, 0.08); }
+        .light-theme .theme-toggle, .light-theme .lang-toggle { background-color: rgba(0, 0, 0, 0.06); color: #111; }
+        .light-theme .search-container input { background-color: #fff; color: #111; border-color: rgba(0, 0, 0, 0.15); }
+        .light-theme .filter-container select { background-color: #ffffff; color: #111111; border-color: rgba(0, 0, 0, 0.15); }
+        .light-theme .autoplay-container { background: #fff; border-color: rgba(0,0,0,0.15); }
+        .light-theme .autoplay-label { color: #333; }
+        .light-theme button.control-btn { background-color: rgba(0, 0, 0, 0.06); color: #111; border-color: rgba(0, 0, 0, 0.1); }
+        .light-theme .video-list .vid { background: #ffffff; border-color: rgba(0, 0, 0, 0.06); box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
+        .light-theme .video-list .vid:hover { background: rgba(0, 127, 255, 0.05); }
+        .light-theme .pagination button { background: #fff; color: #111; border-color: rgba(0, 0, 0, 0.15); }
+        .light-theme .thumb-wrap { background: #000000; }
+        
+        @media (max-width: 768px){ .heading{ font-size: 20px; } .main-video-topbar{ grid-template-columns: 1fr; text-align: center; } .topbar-actions{ justify-content: center; } .video-list{ grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); } .controls-row { flex-direction: column; align-items: stretch; gap: 10px; } .autoplay-container, .filter-container select { height: 46px; justify-content: center; } }
+    </style>
+</head>
+<body>
+    <div class="content-area">
+        <div id="mainVideoPlayer" class="main-video">
+            <div class="main-video-topbar">
+                <div class="topbar-space"></div>
+                <h1 id="galleryMainHeading" class="heading"></h1>
+                <div class="topbar-actions">
+                    <button id="langToggle" class="lang-toggle" title="Change Language">EN / ES</button>
+                    <button class="theme-toggle" aria-label="Cambiar tema" title="Cambiar tema"><span class="theme-icon">◐</span></button>
+                </div>
+            </div>
+            <div class="video-container"><video id="player" controls></video></div>
+            <div class="navigation-buttons">
+                <button id="prevButton" class="control-btn" data-i18n="prev">Anterior</button>
+                <button id="nextButton" class="control-btn" data-i18n="next">Siguiente</button>
+                <button id="playPauseBtn" class="control-btn">Play</button>
+                <button id="fullscreenBtn" class="control-btn" data-i18n="fullscreen">Pantalla Completa</button>
+                <button id="volumeBtn" class="control-btn" data-i18n="mute">Silenciar</button>
+            </div>
+            <h3 id="mainVideoTitle" class="title" data-i18n="select">Selecciona un video</h3>
+        </div>
+
+        <div class="controls-row" id="controlsRow">
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Buscar por título de video..." data-i18n-holder="searchPlaceholder">
+            </div>
+            <div class="filter-container">
+                <select id="extFilter">
+                    <option value="all" id="optAll" data-i18n="allFormats">Formatos (Todos)</option>
+                </select>
+            </div>
+            <div class="autoplay-container">
+                <label class="autoplay-label">
+                    <input type="checkbox" id="autoplayCheck" checked>
+                    <span data-i18n="autoplayLabel">Reproducción Continua</span>
+                </label>
+            </div>
+        </div>
+
+        <div id="videoList" class="video-list"></div>
+        <div id="pagination" class="pagination"></div>
+    </div>
+
+    <script>
+        const RAW_FILES = ${filesJson};
+        const RAW_TITLE = ${JSON.stringify(title)};
+
+        document.title = RAW_TITLE;
+        document.getElementById('galleryMainHeading').textContent = RAW_TITLE;
+
+        const i18n = {
+            es: {
+                prev: "Anterior",
+                next: "Siguiente",
+                fullscreen: "Pantalla Completa",
+                mute: "Silenciar",
+                unmute: "Activar Sonido",
+                select: "Selecciona un video",
+                searchPlaceholder: "Buscar por título de video...",
+                allFormats: "Formatos (Todos)",
+                autoplayLabel: "Reproducción Continua"
+            },
+            en: {
+                prev: "Previous",
+                next: "Next",
+                fullscreen: "Fullscreen",
+                mute: "Mute",
+                unmute: "Unmute",
+                select: "Select a video",
+                searchPlaceholder: "Search video title...",
+                allFormats: "Formats (All)",
+                autoplayLabel: "Continuous Playback"
+            }
+        };
+
+        let currentLang = navigator.language.startsWith('es') ? 'es' : 'en';
+
+        let videoFiles = [];
+        let filteredFiles = [];
+        let activeIndex = -1;
+        let currentPage = 1;
+        const perPage = 20; 
+
+        const videoList = document.getElementById('videoList');
+        const pagination = document.getElementById('pagination');
+        const player = document.getElementById('player');
+        const mainVideoTitle = document.getElementById('mainVideoTitle');
+        const extFilter = document.getElementById('extFilter');
+
+        const extensionsFound = new Set();
+        RAW_FILES.forEach(item => {
+            const ext = item.path.split('.').pop().toLowerCase();
+            videoFiles.push({ path: item.path, title: item.name.substring(0, item.name.lastIndexOf('.')), ext: ext });
+            extensionsFound.add(ext);
+        });
+
+        extensionsFound.forEach(ext => {
+            const opt = document.createElement('option');
+            opt.value = ext; opt.textContent = '.' + ext.toUpperCase();
+            extFilter.appendChild(opt);
+        });
+
+        filteredFiles = [...videoFiles];
+
+        function translateInterface() {
+            const lang = i18n[currentLang];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (lang[key]) el.textContent = lang[key];
+            });
+            document.querySelectorAll('[data-i18n-holder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-holder');
+                if (lang[key]) el.placeholder = lang[key];
+            });
+            
+            if (activeIndex === -1) {
+                mainVideoTitle.textContent = lang.select;
+            }
+            document.getElementById('volumeBtn').textContent = player.muted ? lang.unmute : lang.mute;
+            document.getElementById('playPauseBtn').textContent = player.paused ? 'Play' : (currentLang === 'es' ? 'Pausa' : 'Pause');
+        }
+
+        function playVideo(index, autoScroll = true) {
+            if (index < 0 || index >= filteredFiles.length) return;
+            activeIndex = index;
+            const target = filteredFiles[index];
+
+            const encodedPath = target.path.split('/').map(encodeURIComponent).join('/');
+            player.src = encodedPath;
+            mainVideoTitle.textContent = target.title;
+            player.load();
+            player.play().catch(() => {});
+
+            document.querySelectorAll('.video-list .vid').forEach((card, idx) => {
+                const globalIdx = (currentPage - 1) * perPage + idx;
+                if(globalIdx === activeIndex) card.classList.add('active');
+                else card.classList.remove('active');
+            });
+
+            if (autoScroll) document.getElementById('mainVideoPlayer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        player.onended = () => {
+            const isAutoplayActive = document.getElementById('autoplayCheck').checked;
+            if (isAutoplayActive && filteredFiles.length > 0) {
+                let nextIndex = (activeIndex + 1) % filteredFiles.length;
+                let targetPage = Math.floor(nextIndex / perPage) + 1;
+                if (targetPage !== currentPage) {
+                    renderPage(targetPage);
+                }
+                playVideo(nextIndex, true);
+            }
+        };
+
+        function renderPage(page) {
+            currentPage = page; 
+            videoList.innerHTML = '';
+            
+            const start = (page - 1) * perPage;
+            const pageItems = filteredFiles.slice(start, start + perPage);
+
+            pageItems.forEach((item, index) => {
+                const globalIndex = start + index;
+                const card = document.createElement('div');
+                card.className = 'vid' + (globalIndex === activeIndex ? ' active' : '');
+                
+                const encodedPath = item.path.split('/').map(encodeURIComponent).join('/') + '#t=1';
+                
+                card.innerHTML = \`
+                    <div class="thumb-wrap">
+                        <video class="thumb-video-element" preload="metadata" muted playsinline>
+                            <source src="\${encodedPath}">
+                        </video>
+                        <span class="thumb-badge">.\${item.ext.toUpperCase()}</span>
+                    </div>
+                    <div class="video-info">
+                        <h3 class="title">\${escapeHTML(item.title)}</h3>
+                    </div>
+                \`;
+                
+                card.addEventListener('click', () => playVideo(globalIndex, true));
+                videoList.appendChild(card);
+            });
+            renderPagination();
+        }
+
+        function renderPagination() {
+            pagination.innerHTML = '';
+            const totalPages = Math.ceil(filteredFiles.length / perPage);
+            if (totalPages <= 1) return;
+            
+            for (let i = 1; i <= totalPages; i++) {
+                const btn = document.createElement('button'); btn.textContent = i;
+                if (i === currentPage) btn.classList.add('active-page');
+                btn.addEventListener('click', () => {
+                    renderPage(i);
+                    document.getElementById('controlsRow').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+                pagination.appendChild(btn);
+            }
+        }
+
+        function filterVideos() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            const ext = extFilter.value;
+            filteredFiles = videoFiles.filter(item => {
+                return item.title.toLowerCase().includes(query) && (ext === 'all' || item.ext === ext);
+            });
+            currentPage = 1; renderPage(1);
+        }
+
+        document.getElementById('searchInput').addEventListener('input', filterVideos);
+        extFilter.addEventListener('change', filterVideos);
+
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const volumeBtn = document.getElementById('volumeBtn');
+
+        document.getElementById('prevButton').addEventListener('click', () => { if(activeIndex > 0) { if(Math.floor((activeIndex - 1) / perPage) + 1 !== currentPage) renderPage(Math.floor((activeIndex - 1) / perPage) + 1); playVideo(activeIndex - 1, true); } });
+        document.getElementById('nextButton').addEventListener('click', () => { if(activeIndex < filteredFiles.length - 1) { if(Math.floor((activeIndex + 1) / perPage) + 1 !== currentPage) renderPage(Math.floor((activeIndex + 1) / perPage) + 1); playVideo(activeIndex + 1, true); } });
+        
+        playPauseBtn.addEventListener('click', () => { player.paused ? player.play() : player.pause(); });
+        player.addEventListener('play', () => playPauseBtn.textContent = (currentLang === 'es' ? 'Pausa' : 'Pause'));
+        player.addEventListener('pause', () => playPauseBtn.textContent = 'Play');
+        
+        document.getElementById('fullscreenBtn').addEventListener('click', () => { if (!document.fullscreenElement) player.requestFullscreen(); else document.exitFullscreen(); });
+        
+        volumeBtn.addEventListener('click', () => { 
+            player.muted = !player.muted; 
+            volumeBtn.textContent = player.muted ? i18n[currentLang].unmute : i18n[currentLang].mute; 
+        });
+
+        document.getElementById('langToggle').addEventListener('click', () => {
+            currentLang = currentLang === 'es' ? 'en' : 'es';
+            translateInterface();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (document.activeElement.tagName === 'INPUT') return;
+            switch (e.code) {
+                case 'Space': e.preventDefault(); player.paused ? player.play() : player.pause(); break;
+                case 'ArrowUp': e.preventDefault(); player.volume = Math.min(player.volume + 0.1, 1); break;
+                case 'ArrowDown': e.preventDefault(); player.volume = Math.max(player.volume - 0.1, 0); break;
+                case 'ArrowLeft': player.currentTime = Math.max(player.currentTime - 5, 0); break;
+                case 'ArrowRight': player.currentTime = Math.min(player.currentTime + 5, player.duration || 0); break;
+            }
+        });
+
+        document.querySelector('.theme-toggle').addEventListener('click', () => document.body.classList.toggle('light-theme'));
+        function escapeHTML(str) { return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)); }
+        
+        renderPage(1);
+        translateInterface();
+        if(filteredFiles.length > 0) playVideo(0, false);
+    <\/script>
+</body>
+</html>`;
+
+        try {
+            if (window.showSaveFilePicker) {
+                const options = {
+                    suggestedName: `${filename}.html`,
+                    types: [{ description: 'Archivo Web HTML', accept: { 'text/html': ['.html'] } }],
+                };
+                const handle = await window.showSaveFilePicker(options);
+                const writable = await handle.createWritable();
+                await writable.write(htmlTemplate);
+                await writable.close();
+                
+                showStatusAlert(filename, true);
+                return;
+            }
+        } catch (err) {
+            console.log("Diálogo nativo omitido.");
+        }
+
+        const blob = new Blob([htmlTemplate], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${filename}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showStatusAlert(filename, false);
+    });
+
+    function showStatusAlert(filename, isNative) {
+        const statusEl = document.getElementById('statusMsg');
+        statusEl.style.display = 'block';
+        statusEl.className = isNative ? "status" : "status warning";
+        
+        const t = creatorTranslations[creatorLang];
+        if (isNative) {
+            statusEl.innerHTML = t.successNative(filename);
+        } else {
+            statusEl.innerHTML = t.successBlob(filename, rootFolderName);
+        }
+    }
+</script>
+
+</body>
+</html>
